@@ -1,0 +1,596 @@
+###########################################
+#The MaNGA-HI Reduction Pipeline
+#Last updated: 05 June 2020 by D. V. Stark 
+#contact: david.stark@haverford.edu
+############################################
+
+###############
+Preliminaries
+###############
+
+Before we get into running the actual pipeline, you need to do a few
+things:
+
+(1) Get a GBT computing account (gb.nrao.edu/pubcomputing/visitors.shtml).
+
+(2) You need to log into the GBT machines. From linux or Mac, the
+easiest way to do this is by typing the following into your terminal:
+
+	ssh -X [username]@ssh.gb.nrao.edu
+
+If using a MAC, you may need to download the xquartz
+terminal. X-forwarding (the ability to open up windows from another
+machine on your own computer) has not worked with the standard Mac
+terminal in the past. 
+
+In Windows, you can use a program called Putty to do the same thing
+(under "session->hostname, type ssh.gb.nrao.edu), but there may be
+other options. You'll need to enable X-forwarding regardless of which
+program you use.
+
+Alternatively, you can set up a virtual desktop.  Instructions for
+this are at the end of this document. I highly recommend this for
+Windows users as I'm not familiar with how to set up X-forwarding.
+
+(3) Once you're on the GBT machines, you'll need to run ssh again to
+get into one of the machines actually designated for computing
+(ssh.gb.nrao.edu is just a "gateway".  A full list of computing
+machines is at gb.nrao.edu/pubcomputing/public.shtml
+
+For example, you can log into euclid with
+
+    ssh -X [username]@euclid
+
+(4) You'll be working in a linux environment, so it helps to know some
+basics. If you don't know linux, I suggest looking at a introductory
+tutorial online.  Here are a few basic commands:
+
+ls -- list contents of directory
+pwd -- print the directory you're currently in
+cd [directory] -- move into another directory
+cd ../ -- move back one directory
+cd -- go to your home directory
+cp [filenames] [new directory] -- copy files to a new directory
+mv [filenames] [new directory] -- move files into a new directory (not copy)
+rm [filenames] -- delete files (cannot be undone!)
+rm -r [folder name] -- delete a folder
+mkdir [folder name] -- create a new folder
+
+Note linux can take wildcards, so if you want to copy a bunch of files
+which all contain the string "mangaHI", you could copy them with
+
+cp *mangaHI* [new directory]
+
+Or, you can copy everything with
+
+cp * [new directory]
+
+(5) Once you're logged in, we ask everyone to create a directory
+called "DataReduction" so we know where to find your files.  Please
+use this directory for official data reduction (if you're playing
+around/learning, you can do that somewhere else, but prefereably not
+under DataReduction).
+
+###########################################
+Getting Started with the MaNGA-HI pipeline
+###########################################
+
+The MaNGA-HI GBT reduction pipeline is run in GBTIDL.  However, you
+should need very little actual GBTIDL expertise, especially once the
+main pipeline program is up and running.  Keep in mind, this pipeline
+is designed to be run on GBT computing machines, not your own
+computer (the latter is doable if absolutely necessary).
+
+First, you'll need to gain access to all the reduction scripts. The
+easiest option is to edit your the file called ".gbtidl" in your home
+directory, adding the line:
+
+     !PATH=!PATH+':'+Expand_Path('/users/dstark/17AGBT012/idl_routines/')
+
+Next, start GBTIDL. In a terminal, type:
+
+      >>gbtidl
+
+We need to compile the various programs used to reduce our data. To
+do this, just type:
+   
+      @gbtsetup
+
+If that doesn't work, it means your GBTIDL path is no configured
+properly. Check your .gbtidl file again, or if all else fails, you can
+copy the following file into your working directory
+
+       /users/dstark/17AGBT012/idl_routines/gbtsetup
+
+To initiate the pipeline, type:
+
+     reduce_gbt,[galaxy-name],reducer=[your name]
+
+where the items in brackets indicate things you need to fill in. For
+instance, to reduce galaxy 9865-12701, I would run:
+
+      reduce_gbt,'9865-12701',reducer='D. V. Stark'
+
+Right now, the pipeline only accepts the PLATE-IFU names.  The
+"reducer" keyword is optional, but the code will ask you to input your
+name if you don't supply when calling the pipeline (so we can keep
+track of who did what).
+
+The pipeline is designed to save your work after completing each
+stage, making it easy to pick up where you left off, or go back and
+repeat a step.  If you decide you want to erase everything and start
+from scratch, call the pipeline like:
+
+    reduce_gbt,[galaxy-name],reducer=[your name],/overwrite
+
+Once you've initialized the pipeline, you should see a menu in your terminal:
+
+     ;;;;;;;;;;;;;;;;;;;;;;;;;
+     Choose a task:
+     0: Load Scans
+     1: Inspect Scans (optional)
+     2: Trim Edges
+     3: Remove RFI (optional)
+     4: Smooth Data
+     5: Set Baseline Regions
+     6: Fit Baseline
+     7: Measure RMS
+     8: Measure Profile Parameters (optional)
+     9: Measure HI mass/upper limit
+     10: Write Out Spectra
+     q: Quit
+     ;;;;;;;;;;;;;;;;;;;;;;;
+
+Just type the number or letter corresponding to the task you want to
+perform and hit ENTER. All the steps need to be done in order, except
+those marked "(optional)". The code shouldn't let you perform any
+tasks witout all prerequisites satisfied. Once you've finished a step,
+you'll see a "(done)" beside that task in the menu, which means you
+can proceed to the next step.  You can always go back and repeat steps
+if necessary.
+
+
+#############################
+The _par.sav and .fits files
+#############################
+
+When you start a galaxy reduction, the pipeline creates two files
+called [GALAXY NAME]_par.sav and [GALAXY NAME].fits.  These are very
+important and should not be erased unless you're cool losing all your
+work. 
+
+The _par file contains observing information about your galaxy, key
+information about certain reduction steps (e.g., which regions have
+been flagged as RFI, or regions included in the baseline fit,) measured
+quantities, and tracks which steps you've completed in the
+reduction. We'll use the _par files to create our final catalog.
+
+The .fits files contain the galaxy spectrum at different stages of
+reduction, so we can go back and repeat one step without having to
+completely redo the reduction.
+
+Again, these are important. Take care of them!
+
+
+##############
+Pipeline Steps
+##############
+
+Some steps in the pipeline require no user input (e.g., smoothing the
+spectra) while others require some input (e.g., scan inspection,
+baseline fitting). Below are descriptions of each step, and
+instructions on how to perform the tasks (if necessary).
+
+0: Load scans
+#############
+
+This step queries a large database containing the observation
+information for all our galaxies.  The program automatically grabs and
+loads the scans for a given target.  It will ignore scans we've
+flagged as complete junk (by junk, I mean any scan we know is
+completely useless due to an issue with the telescope, not observing
+conditions like GPS or other RFI)
+
+
+1: Inspect Scans
+################
+
+This step allows you to inspect each of the scans loaded in step
+0. You can plot individual scans and flag either the whole scan, or
+the smaller integrations within each scan. Typically, this stage will
+be used to remove any GPS signal.
+
+You'll see a new menu, which first displays basic information
+about each scan, then a set of options, for example:
+
+     scan_num    scan_id   procedure   step    nint
+        0:  AGBT17A_012_289_37  OnOff       1      31
+        1:  AGBT17A_012_289_38  OnOff       2      31
+        2:  AGBT17A_012_289_39  OnOff       1      31
+        3:  AGBT17A_012_289_40  OnOff       2      31
+        4:  AGBT17A_012_289_41  OnOff       1      31
+        5:  AGBT17A_012_289_42  OnOff       2      31
+
+     Plot scan: p [scan_num]
+     Automatic GPS flag: a [scan_num] [threshold (default=0.5)]
+     Manual Flag: m [scan_num]
+     Flag Full Scan: f [scan_num]
+     Unflag Full Scan: u [scan_num]
+     set x range: x [x0 x1]
+     set y range: y [x0 x1]
+
+Note that "scan_num" in the above list is different from the scan
+number in the original data files (which is the last number in the
+"scan_id" column)
+
+p [scan num] plots an individual scan.
+
+a [scan_num] [threshold] runs the automatic GPS removal program.  You
+can adjust the threshold, but it's probably best to leave it alone
+unless you're very confident
+
+m [scan_num] lets you step through the ~30 integrations within each
+full scan and asks whether you'd like to flag that
+integration. Periodic noise like GPS will typically appear in only
+some of the integrations, so you can flag those, but still keep the
+good ones.
+
+u [scan_num] lets you unflag scans or integrations within scans.
+GBTIDL has its own indexing system for flags, so when you run this
+command, you will see a list of flag IDs. You need to search through
+that list to find the scan/integrations you want to unflag, then type
+those (comma separated) flag indices into the command line. For
+example, let's say I wanted to unflag everything in scan
+AGBT17A_012_289_37 from the list above.  First, I'd type:
+
+       u 0
+
+I'd then get a long list of flag IDs, the corresponding scan,
+integration, etc. I'd find all those corresponding to scan 37
+
+     #ID,RECNUM,SCAN,INTNUM,PLNUM,IFNUM,FDNUM,BCHAN,ECHAN,IDSTRING
+     ...
+     20 * 37 23 * * * * * autoGPS
+     21 * 37 24 * * * * * autoGPS
+     22 * 37 25 * * * * * autoGPS
+     23 * 37 26 * * * * * autoGPS
+     24 * 37 27 * * * * * autoGPS
+     ...
+
+Then I'd type 
+     
+     20,21,22,23,24
+
+or if I just wanted to unflag integrations 20 and 21, I'd type:
+
+     20,21
+
+This is tedious, and someday someone somewhere can write a better tool
+for this.
+
+
+2: Trim Edges
+#############
+
+This just removes data from the beginning/end of the spectrum, where
+the quality is usually bad.
+
+
+3: Remove RFI
+#############
+
+This is a routine which lets you flag any regions in the spectrum
+which have RFI spikes. Note that GPS should be removed in the "inspect
+scans" step, not this way. If you've done this step before, your
+previously identified regions with RFI will be highlighted with
+vertical lines.  You should see a menu come up:
+
+     flag rfi: f
+     automated flagging: a
+     erase all existing rfi regions: x
+     quit: q
+
+Use 'f' to flag rfi regions manually.  First, it will ask you to zoom into the
+region with rfi, so click to regions which are to the left and right
+of the RFI and close enough so that when you zoom in, you get a good
+idea where the RFI begins and ends.  Then click immediately to the
+left and right of the RFI spike.
+
+Type 'a' to run an automatic RFI detection routine. In short, this
+task fits outlier-resistant polynomials in a moving window over the
+spectrum, then identifies the channels which are >5 sigma
+outliers. The regions are plotted and then the user is asked to
+approve them. This routine does well at identifying the most obvious
+RFI, but be careful that it doesn't flag any galaxy emission as RFI
+(this is rare but can happen). Note that this routine is NOT designed
+to flag GPS bursts (those should be flagged under the "Inspect Scans"
+option).
+  
+If you want to remove all your previously flagged regions, type 'x'.
+
+
+4: Smooth Data
+##############
+
+This step first boxcar smooths then hanning smooths the data. 
+
+
+5: Set Baseline Regions
+#######################
+
+This step lets you define the region over which you will fit a
+baseline. Simply click in the plotter to define these regions. The
+regions should get as close to the galaxy signal as possible, but not
+include any of it. If there is a lot of structure we may want to
+exclude the outer regions of the spectrum (only the signal is
+important), but usually fitting most of the signal free spectrum is
+fine. When you're finished, blue boxes will show the regions you've
+selected so you can check whether you are happy with them.
+
+
+6: Fit baseline
+###############
+
+This step is where you actually decide what order polynomial you want
+to fit to the baseline.  Initially, this program does its best to
+automatically determine the optimum baseline order and will plot
+it. You'll then have a few options displayed in a menu:
+
+     Accept baseline: ENTER
+     Provide new fit order: [fit order]
+     Rerun automatric baseline fit: a
+
+To change the fit order, just type in that order and press ENTER
+(e.g., to fit a 3rd order polynomial, type "3" and hit ENTER). Type
+'a' if you want to rerun the automatic baseline fit routine. Once
+you're happy, hit ENTER and the baseline will be subtracted.
+
+This is probably the most subjective part of single-dish data
+reduction. Trial and error is natural. Don't hesitate to repeat the
+definition of your baseline fitting regions and fit order until you
+get something you're happy with.
+
+
+7: Measure RMS
+##############
+
+This step measures the rms noise of the spectrum which we use for
+uncertainty estimation in later steps.  Simply click two points in the
+spectrum which define a SIGNAL FREE region. Define a region large
+enough so as many channels as possible are incorporated into the rms
+measurement.
+
+
+8: Measure profile parameters:
+##############################
+
+If you see a detection, run this step. If not, skip it.  
+
+This task measures the total flux, linewidth, and central velocity of
+the HI profile. We measure the linewidth a few different ways since
+there are different opinions on the "best" way to measure linewidths.
+
+First, you'll be asked to zoom in.  Click to points on the spectrum to
+the left and right of the profile so that when you zoom in, you have a
+clear view of the profile extent. Then it will ask you to mark the
+region of interest.  Click the positions on the spectrum that define
+the left and right extent of the profile. Next, you'll be asked to
+click the positions of the two peaks. You'll need to do this twice.
+
+
+9: Measure HI mass/upper limit
+##############################
+
+This step takes the output from your previous steps and calculates an
+HI mass or upper limit. If you ran step 8, this routine assumes you
+want to calculate the true HI mass using the 21cm flux, but it will
+ask you first. If you measured profile parameters, but then decide
+that the "emission" is probably just noise, this is your chance to fix
+that. Type 'n' when the code asks if you want to measure the HI mass,
+and it will instead calculate the upper limit, and clear all the HI
+profile measurements.
+
+If you skipped step 8, the code automatically assumes you want to
+calculate an upper limit.
+
+
+10: Write out spectrum
+#####################
+
+This routine just writes out ascii and fits files containing the final
+reduced spectrum. 
+
+
+And you're done! Now repeat 2000 times.
+####################
+
+#########################
+How to log your progress
+#########################
+
+We keep track of our progress using google spreadsheets. Go the the
+MaNGA-HI observing wiki page and find the spreadsheet relevant for the
+data you're working on:
+
+trac.sdss.org/wiki/MANGA/Ancillary/HIMaNGA/GBTObserving
+
+You'll need to fill out the following columns:
+
+"reduced" - put 1 if a detection and 0 if a nondetection
+ "who" -- put your name
+"additional reduction notes" -- put any useful comments here, e.g.,
+(messy baseline" or "possible case of confusion"
+
+Once you've done that, the "higher-ups" will take a look at your data.
+If it needs some sort of improvement, we'll let you know
+
+
+###########################################
+######Where to put your finalized data#####
+###########################################
+
+Once you have a bunch of data you feel confident in, you need to move
+it to a place where it can be inspected by a second set of eyes. Copy
+your finalized data into this location with
+
+cp * /users/dstark/17AGBT012/reduced/[your gbt username]/
+
+Using the * will copy everything in your working directory.  Change
+the cp command if you only want to copy some of your data over.
+
+If you don't have a folder set up to copy into, contact David Stark
+(dstark@haverford.edu) to set one up.
+
+DO NOT DO WORK IN THIS DIRECTORY. THIS FOLDER IS ONLY FOR STAGING
+FILES.
+
+Someone will take a look at your processed spectra and either say they
+are good to go, or need a little more work.
+
+
+###############################################
+How to set up a virtual desktop at Green Bank
+###############################################
+
+###Any computer and browser### 
+
+You can set up a remote desktop through your browser by using the
+instructions here:
+https://greenbankobservatory.org/science/gbt-observers/observing/remote-unix-access/
+I have found that setting up a virtual desktop directly from your
+computer (see instructions below) is a bit more responsive, but this
+option is a lot simpler.
+
+
+###Linux/Mac#### (This is really more of a linux tutorial but should
+work for Mac too.  There may be an easier Mac option)
+
+(1) Using a terminal, ssh into ssh.gb.nrao.edu. Then ssh into one of
+the computation machines
+(https://www.gb.nrao.edu/pubcomputing/public.shtml), e.g.,
+   
+     ssh -X [username]@ssh.gb.nrao.edu
+
+     ssh -X [username]@[computer name].gb.nrao.edu
+
+(2) type vncserver -geometry AAAAxAAAA
+    
+    replace AAAAxAAAA by whatever resolution you want in pixels (use
+    your own computer screen's resolution, for example)
+
+    You should see a message that looks like:
+
+    	New 'euclid:4 (dstark)' desktop is euclid:4
+
+    The computer name and username may be different, but note the
+    number if gives.  This is your vnc server number.
+
+    You may also be asked for a password if this is your first time.
+    You'll use this password later to access your virtual desktop. You
+    might want to make it something you'd be willing to share if you
+    ever want someone else to see your desktop.
+    
+(3) Open a new terminal and type
+
+    ssh -N -C -L 590n:[computer].gb.nrao.edu:590n [yourlogin]@ssh.gb.nrao.edu
+
+    where n is your vnc server number, [computer] is whichever
+    computer you started the vncserver on (e.g., euclid, fourier), and
+    [yourlogin] is your standard gbt login
+
+(4) Launch a VNC viewer.  There are many available to download.  I
+prefer RealVNC, but it's up to you. For the VNC server address, type
+"localhost:n" and replace "n" with your vnc server number.
+
+(5) Enter your VNC password that you created earlier (not your normal
+GBT password).  You should see a desktop.  You're now "virtually"
+working at a computer at the Green Bank Observatory. This computer
+will be a linux workstation.
+
+(6) When you're done, it's good practice to kill your vnc session.  In
+a terminal in your virtual desktop, type
+
+    vncserver -kill :n
+
+where n is your vncserver number.  Everything should close
+
+
+###Windows###
+
+(1) Open putty and ssh into ssh.gb.nrao.edu.
+
+    Session->Hostname: ssh.gb.nrao.edu
+
+ Then ssh into one of the computation machines
+ (https://www.gb.nrao.edu/pubcomputing/public.shtml)
+
+(2) type vncserver -geometry AAAAxAAAA
+    
+    replace AAAAxAAAA by whatever resolution you want in pixels (look
+    at what your screen's resolution is, for example)
+
+    You should see a message that looks like:
+
+    	New 'euclid:4 (dstark)' desktop is euclid:4
+
+    The computer name and username may be different, but note the
+    number if gives.  This is your vnc server number.
+
+    You may also be asked for a password if this is your first time.
+    You'll use this password later to access your virtual desktop.
+
+(3) Open a new instance of putty. Put in the following:
+
+    Session->Hostname: ssh.gb.nrao.edu
+    SSH->Tunnels->Source Port: 590n (n is your vncserver number)
+    SSH->Tunnels->Destination: [computer].gb.nrao.edu:590n
+    			       ([computer] is the computer where you
+    			       started the vnc server, n is the vnc
+    			       server number)
+
+    Go ahead and launch. You should be asked for your
+    username/password again.
+
+(4) Launch a VNC viewer.  There are many available to download.  I
+prefer RealVNC, but it's up to you. For the VNC server address, type
+"localhost:n" and replace "n" with your vnc server number.
+
+(5) Enter your VNC password that you created earlier (not your normal
+GBT password).  You should see a desktop.  You're now "virtually"
+working at a computer at the Green Bank Observatory. It will be a
+linux workstation. 
+
+(6) When you're done, it's good practice to kill your vnc session.  In
+a terminal in your virtual desktop, type
+
+    vncserver -kill :n
+
+where n is your vncserver number.  Everything should close
+
+###
+FAQ
+###
+
+If I go back and redo a step, do I need to redo all subsequent steps,
+or will the changes automatically be carried though?
+
+   You need to repeat all subsequent steps.  E.g., if you redo step 5,
+   you'll also need to redo steps 6-10.  But at least you don't need
+   to redo steps 1-4
+
+What's this term "confusion" I keep hearing?
+
+    Single-dish radio telescope have poor spatial resolution. The
+    GBT's resolution is 9 arcminutes for the 21cm line, whereas the
+    galaxies we observe are ~30 arcseconds across on average.
+    Multiple galaxies could theoretically fit in an single GBT "beam".
+    When more than one galaxy could be contributing to the observed HI
+    profiles, we call the observations confused.  We don't always know
+    if this is occuring without looking at all galaxy positions and
+    redshifts, but some signs of it are: (1) HI detection offset from
+    the optical redshift (2) a highly lopsided or generally weird
+    looking HI profile.  If you suspect an observation might be
+    confused, make a note of it on the "general reduction notes"
+    column of the online spreadsheet
+
+

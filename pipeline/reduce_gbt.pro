@@ -345,6 +345,10 @@ function create_menu,task_str
                                 ;simple code to create a menu
                                 ;indicating which steps can be done,
                                 ;and which have been completed
+  nc=strtrim(27B,2)+'[0m'
+  redtext=strtrim(27B,2)+'[31;3m'
+  bluetext=strtrim(27B,2)+'[34;3m'
+
   ntags = n_tags(task_str)
 
   menu = strarr(ntags)
@@ -352,10 +356,6 @@ function create_menu,task_str
      print,''
      print,';;;;;;;;;;;;;;;;;;;;;;;;;'
      print,'Choose a task:'
-
-  nc=strtrim(27B,2)+'[0m'
-  redtext=strtrim(27B,2)+'[31;3m'
-  bluetext=strtrim(27B,2)+'[34;3m'
 
   for i=0,ntags-1 do begin
      status_str = ''
@@ -375,6 +375,10 @@ end
 
 pro print_summary,par
 
+  nc=strtrim(27B,2)+'[0m'
+  redtext=strtrim(27B,2)+'[31;3m'
+  bluetext=strtrim(27B,2)+'[34;3m'
+
            print,'****************'
            print,'    Summary     '
            print,'****************'
@@ -386,6 +390,12 @@ pro print_summary,par
            for i=0,n_elementS(tags)-1 do print,tags[i],par.awvinfo.(i)
            print,'logMHI: ',par.logmhi
            print, 'logMHI (lim): ',par.logmhilim200kms
+           print,''
+           reduction_status = redtext+'INCOMPLETE'+nc
+           if par.tasks.(10).status eq 1 then reduction_status = bluetext+'COMPLETE'+nc
+           print,'This reduction appears '+reduction_status
+
+
 
 end
 

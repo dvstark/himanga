@@ -111,7 +111,7 @@ pro inspector_event,event
   common plotting, x1, y1
 
   ref_cat = '/users/dstark/17AGBT012/idl_routines/mangaHIall.fits'
-  drpallfile = '/users/dstark/17AGBT012/idl_routines/drpall-v2_5_3.fits'
+  drpallfile = '/users/dstark/17AGBT012/idl_routines/drpall-v3_1_1.fits'
   finaldir = './final'
   ref = mrdfits(ref_cat,1,/silent)
   db = mrdfits(drpallfile,1,/silent)

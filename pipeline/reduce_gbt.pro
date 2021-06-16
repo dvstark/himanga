@@ -383,6 +383,7 @@ pro print_summary,par
            print,'    Summary     '
            print,'****************'
            print,'Name: ',par.name
+           print,'alt Names: ',par.alt_names
            print,'T_int:',par.obsinfo.tint
            print,'Tsys: ',par.obsinfo.tsys
            print, 'rms: ',par.statinfo.rms
@@ -441,6 +442,7 @@ pro rename_reduction_files,oldname,newname,reducer=reducer
   filein,oldname+'.fits'
 
   for r=0,4 do begin
+     print,'id: ',r
      getrec,r
      !g.s[0].source=newname
      nsave,r
@@ -455,6 +457,11 @@ end
 
 
 pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
+
+  common useful, drpall
+
+  drpallfile = '~/17AGBT012/idl_routines/drpall-v3_1_1.fits'
+  drpall = mrdfits(drpallfile,1)
 
   if n_params() eq 0 then begin
      print,''
@@ -532,17 +539,20 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
                                 ;some older .par files may have had
                                 ;extra white space in their scan info
                                 ;arrays when first created. Quick fix:
-  if tag_exist(par,'scans') then begin
-     nscan = n_elements(par.scans.scaninfo)
-     for i=0,nscan-1 do begin
-        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid,/remove_all)
-        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_id,/remove_all)
-        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].datapath,/remove_all)
-        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source,/remove_all)
-        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/remove_all)
 
-     endfor
-  endif
+  fix_par,par,/resave
+
+;  if tag_exist(par,'scans') then begin
+;     nscan = n_elements(par.scans.scaninfo)
+;     for i=0,nscan-1 do begin
+;        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid;,/remove_all)
+;        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_;id,/remove_all)
+;        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].data;path,/remove_all)
+;        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source;,/remove_all)
+;        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/re;move_all)
+
+;     endfor
+;  endif
 
   ;determine last step run (if any) and load that spectrum
   ntags=n_tags(par.tasks)
@@ -764,11 +774,10 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
                  newnames = strsplit(par.alt_names,';',/extract)
                  for kk=0,n_elements(newnames)-1 do begin
                     rename_reduction_files,par.name,newnames[kk],reducer=reducer
+                    ;reset filein/fileout
+                    !g.line_filein_name=''
+                    fileout,par.name+'.fits',new=new
                  endfor
-
-                 ;make new par file
-                 ;make new fits file and change all names
-                 ;make new ascii and fits spectra
 
               endif
            endif
@@ -827,3 +836,46 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
 
 end
 
+pro fix_par,par,resave=resave
+
+  common useful, drpall
+
+;Code to update par files when there are changes that affect the
+;structure. Sometimes tags are added, which can cause problems later
+;when loading in old par files
+
+                                ;some older .par files may have had
+                                ;extra white space in their scan info
+                                ;arrays when first created. Quick fix:
+
+  if tag_exist(par,'scans') then begin
+     nscan = n_elements(par.scans.scaninfo)
+     for i=0,nscan-1 do begin
+        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid,/remove_all)
+        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_id,/remove_all)
+        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].datapath,/remove_all)
+        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source,/remove_all)
+        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/remove_all)
+     endfor
+  endif
+
+  ;add in and populate the altname keyword if it is missing
+  if 1-tag_exist(par,'alt_names') then begin
+     struct_add_field,par,'alt_names','',after='NAME'
+  endif
+
+  ;populate the alt_names field if needed
+  sel=where(drpall.plateifu eq par.name)
+  mangaid = drpall[sel].mangaid
+  sel=where(drpall.mangaid eq mangaid)
+  allnames = drpall[sel].plateifu
+  if n_elements(allnames) gt 1 then begin
+     sel=where(allnames ne par.name)
+     par.alt_names = strjoin(allnames[sel],';')
+  endif
+
+  if keyword_set(resave) then save,par,filename=par.name+'_par.sav'
+
+
+
+end

@@ -399,6 +399,61 @@ pro print_summary,par
 
 end
 
+pro rename_reduction_files,oldname,newname,reducer=reducer
+
+;This routine renames reduction files for a given galaxy. Not only
+;does it change file names, but it updates the target name embedded in
+;each file (e.g., the name entry in the _par.sav reduction files, and
+;the 'source' entry in the !g.s[0] structure. This is designed for
+;galaxies which have multiple plate-ifu designations; once we reduce
+;the galaxy once, we just copy the files with their alternate names.
+;
+;INPUT
+;
+; oldname: original name of source/file
+;
+; newname: new name of source/file
+;
+;OUTPUT
+;
+; new files renamed with the newname entry
+
+  ;first read in par.sav file
+  oldparname = oldname+'_par.sav'
+  newparname = newname+'_par.sav'
+
+  restore,oldparname
+  alt_names = strsplit(par.alt_names,';',/extract)
+  all_names = [par.name,alt_names]
+  
+  newpar = par
+  newpar.name = newname
+  newpar.alt_names = strjoin(all_names[where(all_names ne newname)],';')
+  par = newpar
+  print,'creating '+newparname
+  save,par,filename=newparname
+
+
+  ;create new fits output file to go with par.sav file
+  ;change input/output files
+  print,'creating '+newname+'.fits'
+  fileout,newname+'.fits',/new
+  filein,oldname+'.fits'
+
+  for r=0,4 do begin
+     getrec,r
+     !g.s[0].source=newname
+     nsave,r
+  endfor
+
+  print,'creating spectrum files'
+  asciiout,load_ind,reducer     ;,dir=outputdir
+  asciifile = 'mangaHI-'+par.name+'.csv'
+  ascii_to_fits,asciifile     
+
+end
+
+
 pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
 
   if n_params() eq 0 then begin
@@ -469,7 +524,7 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
   statinfo = {bhan:0L,echan:0L,nchan:0L,xmin:0d,xmax:0d,min:0d,max:0d,mean:0d,median:0d,rms:0d,variance:0d,area:0d}
   awvinfo_orig = {peak:0d,snr:0d,xmin:0L,xmax:0L,fhi:0d,vhi:0d,wm50:0d,wp50:0d,wp20:0d,eV:0d,w2p50:0d,wf50:0d,al:0d,bl:0d,ar:0d,br:0d,pr:0d,pl:0d}
 
-  par = {name:galaxy,rfi_regions:intarr(2,100)-99,tasks:tasks, blregions:intarr(2,100)-99, fit_order:-1,statinfo:statinfo,awvinfo:awvinfo_orig,obsinfo:obsinfo, logmhi:0d,logmhilim200kms:0d}
+  par = {name:galaxy,alt_names:'',rfi_regions:intarr(2,100)-99,tasks:tasks, blregions:intarr(2,100)-99, fit_order:-1,statinfo:statinfo,awvinfo:awvinfo_orig,obsinfo:obsinfo, logmhi:0d,logmhilim200kms:0d}
   
                                 ;if there exists a parameter file already and overwrite not set, load it in
   if file_test(galaxy+'_par.sav') and 1-keyword_set(overwrite) then restore,galaxy+'_par.sav'
@@ -541,7 +596,8 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
            print,'loading scans'
-           fetch_data,galaxy,'/users/dstark/17AGBT012/database/stable/mangahi_scandb.fits',scaninfo=scaninfo
+           fetch_data,galaxy,'/users/dstark/17AGBT012/database/stable/mangahi_scandb.fits',scaninfo=scaninfo,alt_names=alt_names
+           par.alt_names = alt_names
            unzoom
            if n_elements(scaninfo) eq 0 then return
            if tag_exist(par,'scans') then struct_delete_field,par,'scans'
@@ -700,7 +756,23 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
               ascii_to_fits,asciifile
               par.tasks.(10).status=1
                                 ;save output to formatted .fits file
-           endif 
+
+              if par.alt_names ne '' then begin
+                 print,''
+                 print,'Other PLATE-IFU designations correspond to this same galaxy. Creating output files for them too (hooray for not reducing the same galaxy multiple times anymore!)'
+                 print,''
+                 newnames = strsplit(par.alt_names,';',/extract)
+                 for kk=0,n_elements(newnames)-1 do begin
+                    rename_reduction_files,par.name,newnames[kk],reducer=reducer
+                 endfor
+
+                 ;make new par file
+                 ;make new fits file and change all names
+                 ;make new ascii and fits spectra
+
+              endif
+           endif
+ 
         end
         'q':begin
 

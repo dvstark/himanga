@@ -24,17 +24,25 @@ end
 
 
 
-pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo
+pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo,drpallfile=drpallfile,alt_names = alt_names
   
 ;;script to find data for a given manga-HI target, read it in, and
 ;;accumulate it.
 ;;
-;; name = target name
+;; name = target name (plate-ifu)
 ;; dbfile = observations database (holds all the scan info)
 ;; badscan_file = file that indicates which scans are bad and should
 ;; be completely ignored (this is separate from issues like GPS, but
 ;; rather scans that were bad from the start due to telescope issues)
 ;; scaninfo = variable that holds all the info about each scan loaded
+;;
+;; Updated on June 1 2021 to look up MangaID and use that for
+;; matching. Will merge all data for single object with two plate-ifu
+;; designationd together. The combined file is named whatever is given
+;; in "name" but alt_names is returned that gives the other plate-ifu
+;; designations for this galaxy
+
+  if 1-keyword_set(drpallfile) then drpallfile = '/users/dstark/17AGBT012/idl_routines/drpall-v3_1_1.fits'
 
   if 1-keyword_set(badscan_file) then begin
      
@@ -43,6 +51,7 @@ pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo
 
   endif
 
+  alt_names = ''
 
   sclear
 
@@ -54,6 +63,7 @@ pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo
   db.projid = strtrim(db.projid,2)
   db.scan_id = strtrim(db.scan_id,2)
   db.datapath = strtrim(db.datapath,2)
+  db.mangaid = strtrim(db.mangaid,2)
 
   badscan_db = parse_badscan_file(badscan_file)
   
@@ -63,13 +73,23 @@ pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo
   if ind1[0] ne -1 then keep[ind1]=0
   db=db[where(keep)]
 
-  sel=where(strtrim(db.source,2) eq name and strtrim(db.proc,2) eq 'OnOff',nmatch)
+  ;read drpall and look up MaNGA-ID
+  drp = mrdfits(drpallfile,1,/silent)
+  sel=where(drp.plateifu eq name)
+  matched_mangaid = drp[sel].mangaid
+  sel=where(strtrim(db.mangaid,2) eq matched_mangaid,nmatch)
+
+  
+  ;line below replaced with line above (now matching on mangaid, not plate-ifu)
+  ;sel=where(strtrim(db.source,2) eq name and strtrim(db.proc,2) eq 'OnOff',nmatch)
   if nmatch lt 2 then begin
      print,'no data found. Exiting'
      return
   endif
 
   db=db[sel]
+
+  
 
   good = intarr(n_elements(db))+1
   
@@ -143,8 +163,28 @@ pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo
   if total(1-good) gt 0 then scan_status[where(1-good)]=' ignored'
 
   forprint,db,scan_status
-
+  
   scaninfo = db
+
+                                ;see if there are multiple plateifus
+                                ;for this galaxy. Warn user if so
+  uniq_plateifu = uniq(db.source,sort(db.source))
+  unique_plateifu = db[uniq_plateifu].source
+  if n_elements(unique_plateifu) gt 1 then begin
+     print,''
+     print,'NOTE: THIS GALAXY HAS MULTIPLE PLATE-IFU DESIGNATIONS. COMBINING THEM ALL'
+     print,'PLATEIFUs:',unique_plateifu
+     print,''
+     alt_names = strjoin(unique_plateifu[where(unique_plateifu ne name)],';')
+
+     if !g.s[0].source ne name then begin
+        print,'renaming combined spectrum as user-defined name'
+        !g.s[0].source = name
+        copy,0,1
+        copy,1,0 ;there's got to be a better way to make the plot title refresh
+     endif
+
+  endif
 
 end
 

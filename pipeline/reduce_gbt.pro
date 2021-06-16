@@ -383,6 +383,7 @@ pro print_summary,par
            print,'    Summary     '
            print,'****************'
            print,'Name: ',par.name
+           print,'alt Names: ',par.alt_names
            print,'T_int:',par.obsinfo.tint
            print,'Tsys: ',par.obsinfo.tsys
            print, 'rms: ',par.statinfo.rms
@@ -399,7 +400,68 @@ pro print_summary,par
 
 end
 
+pro rename_reduction_files,oldname,newname,reducer=reducer
+
+;This routine renames reduction files for a given galaxy. Not only
+;does it change file names, but it updates the target name embedded in
+;each file (e.g., the name entry in the _par.sav reduction files, and
+;the 'source' entry in the !g.s[0] structure. This is designed for
+;galaxies which have multiple plate-ifu designations; once we reduce
+;the galaxy once, we just copy the files with their alternate names.
+;
+;INPUT
+;
+; oldname: original name of source/file
+;
+; newname: new name of source/file
+;
+;OUTPUT
+;
+; new files renamed with the newname entry
+
+  ;first read in par.sav file
+  oldparname = oldname+'_par.sav'
+  newparname = newname+'_par.sav'
+
+  restore,oldparname
+  alt_names = strsplit(par.alt_names,';',/extract)
+  all_names = [par.name,alt_names]
+  
+  newpar = par
+  newpar.name = newname
+  newpar.alt_names = strjoin(all_names[where(all_names ne newname)],';')
+  par = newpar
+  print,'creating '+newparname
+  save,par,filename=newparname
+
+
+  ;create new fits output file to go with par.sav file
+  ;change input/output files
+  print,'creating '+newname+'.fits'
+  fileout,newname+'.fits',/new
+  filein,oldname+'.fits'
+
+  for r=0,4 do begin
+     print,'id: ',r
+     getrec,r
+     !g.s[0].source=newname
+     nsave,r
+  endfor
+
+  print,'creating spectrum files'
+  asciiout,load_ind,reducer     ;,dir=outputdir
+  asciifile = 'mangaHI-'+par.name+'.csv'
+  ascii_to_fits,asciifile     
+
+end
+
+
 pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
+
+  common useful, drpall
+
+  drpallfile = '~/17AGBT012/idl_routines/drpall-v3_1_1.fits'
+  drpall = mrdfits(drpallfile,1)
 
   if n_params() eq 0 then begin
      print,''
@@ -469,7 +531,7 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
   statinfo = {bhan:0L,echan:0L,nchan:0L,xmin:0d,xmax:0d,min:0d,max:0d,mean:0d,median:0d,rms:0d,variance:0d,area:0d}
   awvinfo_orig = {peak:0d,snr:0d,xmin:0L,xmax:0L,fhi:0d,vhi:0d,wm50:0d,wp50:0d,wp20:0d,eV:0d,w2p50:0d,wf50:0d,al:0d,bl:0d,ar:0d,br:0d,pr:0d,pl:0d}
 
-  par = {name:galaxy,rfi_regions:intarr(2,100)-99,tasks:tasks, blregions:intarr(2,100)-99, fit_order:-1,statinfo:statinfo,awvinfo:awvinfo_orig,obsinfo:obsinfo, logmhi:0d,logmhilim200kms:0d}
+  par = {name:galaxy,alt_names:'',rfi_regions:intarr(2,100)-99,tasks:tasks, blregions:intarr(2,100)-99, fit_order:-1,statinfo:statinfo,awvinfo:awvinfo_orig,obsinfo:obsinfo, logmhi:0d,logmhilim200kms:0d}
   
                                 ;if there exists a parameter file already and overwrite not set, load it in
   if file_test(galaxy+'_par.sav') and 1-keyword_set(overwrite) then restore,galaxy+'_par.sav'
@@ -477,17 +539,20 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
                                 ;some older .par files may have had
                                 ;extra white space in their scan info
                                 ;arrays when first created. Quick fix:
-  if tag_exist(par,'scans') then begin
-     nscan = n_elements(par.scans.scaninfo)
-     for i=0,nscan-1 do begin
-        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid,/remove_all)
-        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_id,/remove_all)
-        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].datapath,/remove_all)
-        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source,/remove_all)
-        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/remove_all)
 
-     endfor
-  endif
+  fix_par,par,/resave
+
+;  if tag_exist(par,'scans') then begin
+;     nscan = n_elements(par.scans.scaninfo)
+;     for i=0,nscan-1 do begin
+;        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid;,/remove_all)
+;        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_;id,/remove_all)
+;        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].data;path,/remove_all)
+;        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source;,/remove_all)
+;        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/re;move_all)
+
+;     endfor
+;  endif
 
   ;determine last step run (if any) and load that spectrum
   ntags=n_tags(par.tasks)
@@ -541,7 +606,8 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
            print,'loading scans'
-           fetch_data,galaxy,'/users/dstark/17AGBT012/database/stable/mangahi_scandb.fits',scaninfo=scaninfo
+           fetch_data,galaxy,'/users/dstark/17AGBT012/database/stable/mangahi_scandb.fits',scaninfo=scaninfo,alt_names=alt_names
+           par.alt_names = alt_names
            unzoom
            if n_elements(scaninfo) eq 0 then return
            if tag_exist(par,'scans') then struct_delete_field,par,'scans'
@@ -700,7 +766,22 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
               ascii_to_fits,asciifile
               par.tasks.(10).status=1
                                 ;save output to formatted .fits file
-           endif 
+
+              if par.alt_names ne '' then begin
+                 print,''
+                 print,'Other PLATE-IFU designations correspond to this same galaxy. Creating output files for them too (hooray for not reducing the same galaxy multiple times anymore!)'
+                 print,''
+                 newnames = strsplit(par.alt_names,';',/extract)
+                 for kk=0,n_elements(newnames)-1 do begin
+                    rename_reduction_files,par.name,newnames[kk],reducer=reducer
+                    ;reset filein/fileout
+                    !g.line_filein_name=''
+                    fileout,par.name+'.fits',new=new
+                 endfor
+
+              endif
+           endif
+ 
         end
         'q':begin
 
@@ -755,3 +836,46 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
 
 end
 
+pro fix_par,par,resave=resave
+
+  common useful, drpall
+
+;Code to update par files when there are changes that affect the
+;structure. Sometimes tags are added, which can cause problems later
+;when loading in old par files
+
+                                ;some older .par files may have had
+                                ;extra white space in their scan info
+                                ;arrays when first created. Quick fix:
+
+  if tag_exist(par,'scans') then begin
+     nscan = n_elements(par.scans.scaninfo)
+     for i=0,nscan-1 do begin
+        par.scans.scaninfo[i].projid = strcompress(par.scans.scaninfo[i].projid,/remove_all)
+        par.scans.scaninfo[i].scan_id = strcompress(par.scans.scaninfo[i].scan_id,/remove_all)
+        par.scans.scaninfo[i].datapath = strcompress(par.scans.scaninfo[i].datapath,/remove_all)
+        par.scans.scaninfo[i].source = strcompress(par.scans.scaninfo[i].source,/remove_all)
+        par.scans.scaninfo[i].proc = strcompress(par.scans.scaninfo[i].proc,/remove_all)
+     endfor
+  endif
+
+  ;add in and populate the altname keyword if it is missing
+  if 1-tag_exist(par,'alt_names') then begin
+     struct_add_field,par,'alt_names','',after='NAME'
+  endif
+
+  ;populate the alt_names field if needed
+  sel=where(drpall.plateifu eq par.name)
+  mangaid = drpall[sel].mangaid
+  sel=where(drpall.mangaid eq mangaid)
+  allnames = drpall[sel].plateifu
+  if n_elements(allnames) gt 1 then begin
+     sel=where(allnames ne par.name)
+     par.alt_names = strjoin(allnames[sel],';')
+  endif
+
+  if keyword_set(resave) then save,par,filename=par.name+'_par.sav'
+
+
+
+end

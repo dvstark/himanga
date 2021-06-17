@@ -85,7 +85,7 @@ function mygmeasure,mode, f, ifirst=ifirst, last=last, rms=rms, quiet=quiet, $
     clearoplots
 
     if n_elements(ifirst) eq 0 or n_elements(last) eq 0 then begin
-        print,'Mark the region of interest with the cursor (any mouse click)'
+        print,'Mark the minimum and maximum velocity of the profile with the cursor (any mouse click)'
         c = click()
         gbtoplot,[c.x,c.x],getyrange(),color=!white
         ifirst = round(c.chan)

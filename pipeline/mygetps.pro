@@ -173,7 +173,7 @@ PRO quickwidth, peak, rms, widthinfo = widthinfo,calc_peak=calc_peak
 
 
    
-   print, "Mark the region of interest with the cursor (any mouse click)"
+   print, "Mark the minimum and maximum velocity of the profile with the cursor (any mouse click)"
    c=click()
    xMin = round(c.chan)
    xMin_kms=c.velo/1000.

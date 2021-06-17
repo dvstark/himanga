@@ -460,7 +460,7 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
 
   common useful, drpall
 
-  drpallfile = '~/17AGBT012/idl_routines/drpall-v3_1_1.fits'
+  drpallfile = '/users/dstark/17AGBT012/idl_routines/drpall-v3_1_1.fits'
   drpall = mrdfits(drpallfile,1)
 
   if n_params() eq 0 then begin

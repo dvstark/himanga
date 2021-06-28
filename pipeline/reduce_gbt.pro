@@ -865,13 +865,21 @@ pro fix_par,par,resave=resave
   endif
 
   ;populate the alt_names field if needed
-  sel=where(drpall.plateifu eq par.name)
-  mangaid = drpall[sel].mangaid
-  sel=where(drpall.mangaid eq mangaid)
-  allnames = drpall[sel].plateifu
-  if n_elements(allnames) gt 1 then begin
-     sel=where(allnames ne par.name)
-     par.alt_names = strjoin(allnames[sel],';')
+  sel=where(drpall.plateifu eq par.name,count)
+  if count eq 0 then begin
+     print,'warning: no mangaID found for this galaxy. Press any key to continue'
+     answer=''
+     read,answer
+  endif
+
+  if count gt 0 then begin
+     mangaid = drpall[sel].mangaid
+     sel=where(drpall.mangaid eq mangaid)
+     allnames = drpall[sel].plateifu
+     if n_elements(allnames) gt 1 then begin
+        sel=where(allnames ne par.name)
+        par.alt_names = strjoin(allnames[sel],';')
+     endif
   endif
 
   if keyword_set(resave) then save,par,filename=par.name+'_par.sav'

@@ -771,12 +771,13 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
                  print,''
                  print,'Other PLATE-IFU designations correspond to this same galaxy. Creating output files for them too (hooray for not reducing the same galaxy multiple times anymore!)'
                  print,''
+                 save,par,filename=galaxy+'_par.sav' ;need to save par file first so all updates copy over
                  newnames = strsplit(par.alt_names,';',/extract)
                  for kk=0,n_elements(newnames)-1 do begin
                     rename_reduction_files,par.name,newnames[kk],reducer=reducer
                     ;reset filein/fileout
                     !g.line_filein_name=''
-                    fileout,par.name+'.fits',new=new
+                    fileout,par.name+'.fits';,new=new
                  endfor
 
               endif
@@ -830,7 +831,7 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
                                 ;save after every step
      if answer ne 'q' and answer ne '' then setxunit,'km/s'
      save,par,filename=galaxy+'_par.sav'
-     
+;     print,'saved par file'
      
   endwhile
 

@@ -168,8 +168,13 @@ pro fetch_data,name,dbfile,badscan_file=badscan_file,scaninfo=scaninfo,drpallfil
 
                                 ;see if there are multiple plateifus
                                 ;for this galaxy. Warn user if so
-  uniq_plateifu = uniq(db.source,sort(db.source))
-  unique_plateifu = db[uniq_plateifu].source
+
+  ;find all entries in drpall catalog
+  sel=where(drp.mangaid eq matched_mangaid,count)
+  unique_plateifu = drp[sel].plateifu
+
+  ;uniq_plateifu = uniq(db.source,sort(db.source))
+  ;unique_plateifu = db[uniq_plateifu].source
   if n_elements(unique_plateifu) gt 1 then begin
      print,''
      print,'NOTE: THIS GALAXY HAS MULTIPLE PLATE-IFU DESIGNATIONS. COMBINING THEM ALL'

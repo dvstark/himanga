@@ -1,0 +1,56 @@
+How to create the HI-MaNGA database:
+
+(1) Run "merge_reduction_files.pro" -- At the bottom of this code is
+the actual command which calls the main routine. You'll need to modify
+the list of directories to include any new folders. Also, update the
+log file name.
+
+This code goes through the directories in
+/users/dstark/17AGBT012/reduced/ and pulls all reduction files from
+each users "final" subdirectory. Any incomplete sets of files (there
+shouldn't be any) will be ignored, but noted in the log file. If there
+are duplicate files (e.g., two people reduced the same galaxy),
+neither file will be copied, but they will be noted in the log file so
+that they can be sorted out later (there's a program to sort through
+them that is described below).
+
+The code copies everything, even files that have been copied before,
+so it may take a minute or two to complete. I copy everything from
+scratch to ensure I properly account for duplicate reductions.
+
+Nile Samanso's reduced spectra are copied first. These were done
+before the pipeline was updated, so I allow any galaxies she did to be
+replaced by newer reductions if they exist.
+
+(2) Optional -- Run check_duplicates.pro. This code reads the log file
+from step 1, which is supplied as an argument. It goes through each
+set of duplicates and compares them, showing both their spectra and
+their measured parameters (the output is pretty simple at this point,
+but it shouldn't be hard to modify this code to make things prettier
+down the road). The user will be prompted in the terminal to choose
+one of the reductions or skip. Typically, it's easy to identify which
+reduction to keep because one uses more data (see the total
+integration time printed). Once one of the reductions is chosen as the
+one to keep, the other is copied over to a new directory called
+"duplicates" in the relevant users directory under
+/users/dstark/17AGBT012/reduced/
+
+(3) Run mangahi_catalog_wrapper.pro -- This wrapper script calls
+various other programs that merge the data reduction files into a
+single catalog, apply various corrections (e.g. flux calibration,
+cosmological corrections), flags confusion, and merges GBT and ALFALFA
+data.
+
+The user should edit a few file names at the top of the
+file. Otherwise, it runs on its own.
+
+Note: The ALFALFA catalog is generated in another set of codes (still
+need to be documented), but it matches the GBT format. The GBT and
+ALFALFA data are essentially just concatentated at the end. There WILL
+be galaxies with GBT and ALFALFA data.
+
+I like to put the catalogs in /users/dstark/17AGBT012/master/catalogs/
+
+(4) Optional - There's a code called "catalog checks" that does some
+basic checks on the catalog for unusual values. It's not very
+user-friendly at this point though.

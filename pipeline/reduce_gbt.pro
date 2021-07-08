@@ -25,7 +25,7 @@ pro trim_edges,nlow=nlow,nhigh=nhigh
   replace,nchan-1-nhigh,nchan-1,/blank
 end
 
-pro rfi_wrapper,par_struct
+pro rfi_wrapper,par_struct,load_ind
 
   ;wrapper program for easy RFI flagging and removal
 
@@ -667,7 +667,7 @@ pro reduce_gbt,galaxy,reducer=reducer,overwrite=overwrite
            if gatekeeper(uint(answer),par.tasks) then begin
               load_ind=1 
               kget,nsave=load_ind    
-              rfi_wrapper,par        
+              rfi_wrapper,par,load_ind        
               par.tasks.(3).status=1
               save_ind=2
               nsave,save_ind

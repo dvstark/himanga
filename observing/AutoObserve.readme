@@ -1,0 +1,46 @@
+Program GBT21B-130 Operator Instructions
+
+1) Run 21B_130_AutoObserve under the "AGBT21B_130" project in astrid
+
+	-Typically, this script will (a) run an AutoPeak scan and
+        apply pointing corrections, then (b) observe galaxies in L
+        band. The targets are chosen automatically. 
+
+	      -Do not be concerned if step (a) is skipped! We record
+              the time of our last AutoPeak scan, and if one was done
+              recently, our script will skip this step (this helps to
+              minimize overhead in case the script needs to be
+              restarted during an observing session).
+
+	-The operator simply needs to check that the data looks
+        reasonable with the following images as reference:
+
+	      A) /users/dstark/17AGBT012/scripts/example_autopeak.png
+	      -- typical calibration scan (AutoPeak) in Astrid
+
+	      B) /users/dstark/17AGBT012/scripts/example_HI.jpg --
+	      typical galaxy observation in Astrid
+
+2) When our time is finished, abort the script. If possible, please
+let the current ON/OFF pair finish.
+
+
+##IF YOU RECEIVE AN ERROR## 
+
+     -DO NOT EDIT AND SAVE THE OBSERVING SCRIPT. The script
+      automatically updates catalogs which track observing status for
+      our targets. Validating/saving the code alters these catalogs,
+      so if they are not properly backed up beforehand, it is
+      extremely annoying to fix.
+
+     -Try restarting the script. If it still fails after a restart,
+      contact David Stark (contact info below)
+
+     -Regardless, please record the astrid output (and any other
+      potentially useful info) and send it to David Stark.
+
+For any problems or questions, please contact:
+
+David Stark
+email: dstark@haverford.edu
+
